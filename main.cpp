@@ -46,7 +46,7 @@ struct Sphere {
 };
 
 Vec3f reflect(const Vec3f &I, const Vec3f &N) {
-    return I - N * 2 * (I * N);
+    return N * 2 * (I * N) - I;
 }
 
 bool scene_intersect(const Vec3f &origin, const Vec3f &dir, const std::vector<Sphere> &spheres,
@@ -77,10 +77,18 @@ Vec3f cast_ray(const Vec3f &origin, const Vec3f &dir,
     float specularLightIntensity = 0;
     for (const auto &light : lights) {
         Vec3f lightDir = (light.position - point).normalize();
+        float lightDistance = (light.position - point).norm();
+
+        Vec3f shadowOrigin = lightDir * N < 0 ? point - N * 1e-4 : point + N * 1e-4;
+        Vec3f shadowPt, shadowN;
+        Material tmpMat;
+        if (scene_intersect(shadowOrigin, lightDir, spheres, shadowPt, shadowN, tmpMat) &&
+            (shadowPt - shadowOrigin).norm() < lightDistance)
+            continue;
 
         diffuseLightIntensity += light.intensity * std::max(0.f, lightDir * N);
         specularLightIntensity +=
-                light.intensity * powf(std::max(0.f, reflect(-lightDir, N) * -dir), material.specularExponent);
+                light.intensity * powf(std::max(0.f, reflect(lightDir, N) * -dir), material.specularExponent);
     }
 
     return material.diffuseColor * diffuseLightIntensity * material.albedo[0] +
@@ -128,11 +136,11 @@ int main() {
     Material redRubber({0.9, 0.1}, {0.3, 0.1, 0.1}, 10);
 
     std::vector<Sphere> spheres;
-//    spheres.emplace_back(Vec3f(-3, 0, -16), 2, ivory);
-//    spheres.emplace_back(Vec3f(-1, -1, -12), 2, redRubber);
-//    spheres.emplace_back(Vec3f(8, -8, -18), 3, redRubber);
-//    spheres.emplace_back(Vec3f(7, 5, -18), 4, ivory);
-//    spheres.emplace_back(Vec3f(-10, -12, -18), 4, ivory);
+    spheres.emplace_back(Vec3f(-3, 0, -16), 2, ivory);
+    spheres.emplace_back(Vec3f(-1, -1, -12), 2, redRubber);
+    spheres.emplace_back(Vec3f(8, -8, -18), 3, redRubber);
+    spheres.emplace_back(Vec3f(7, 5, -18), 4, ivory);
+    spheres.emplace_back(Vec3f(-10, -12, -18), 4, ivory);
     spheres.emplace_back(Vec3f(0, 0, -6), 1, redRubber);
     spheres.emplace_back(Vec3f(1, -1, -10), 3, redRubber);
     spheres.emplace_back(Vec3f(0, 2.5f, -6), 1, ivory);
@@ -142,11 +150,11 @@ int main() {
     spheres.emplace_back(Vec3f(-1.25f, 0, -6), 1, ivory);
 
     std::vector<Light> lights;
-//    lights.emplace_back(Vec3f(-20, 20, 20), 1.5);
-//    lights.emplace_back(Vec3f(-20, 20, -20), 1);
-//    lights.emplace_back(Vec3f(30, 20, 30), 1.7);
-    lights.emplace_back(Vec3f(0, 0, 0), 1.7);
-    lights.emplace_back(Vec3f(5, 5, 0), 1.3);
+    lights.emplace_back(Vec3f(-20, 20, 20), 1);
+    lights.emplace_back(Vec3f(-20, 20, -20), 1);
+    lights.emplace_back(Vec3f(30, 20, 30), 1);
+    lights.emplace_back(Vec3f(0, 0, 0), 1);
+    lights.emplace_back(Vec3f(5, 5, 0), 1);
 
     render(spheres, lights);
 
