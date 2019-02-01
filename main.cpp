@@ -78,7 +78,24 @@ bool scene_intersect(const Vec3f &origin, const Vec3f &dir, const std::vector<Sp
             material = sphere.material;
         }
     }
-    return spheresDist < 1000;
+
+    float checkerboardDist = std::numeric_limits<float>::max();
+    if (fabs(dir.y) > 1e-3) {
+        float d = -(origin.y + 4) / dir.y;
+        Vec3f pt = origin + dir * d;
+        if (d > 0 && fabs(pt.x) < 10 && pt.z < -10 && pt.z > -30 && d < spheresDist) {
+            checkerboardDist = d;
+            hit = pt;
+            N = Vec3f(0, 1, 0);
+            material.diffuseColor = (int(.5 * hit.x + 1000) + int(.5 * hit.z)) % 2 ?
+                                    Vec3f(1, 1, 1) :
+                                    Vec3f(1, .3, .3);
+
+            material.diffuseColor = material.diffuseColor * .3;
+        }
+    }
+
+    return std::min(spheresDist, checkerboardDist) < 1000;
 }
 
 Vec3f cast_ray(const Vec3f &origin, const Vec3f &dir,
@@ -130,7 +147,8 @@ void render(const std::vector<Sphere> &spheres, const std::vector<Light> &lights
     std::vector<Vec3f> frameBuffer(width * height);
     std::cout << "Buffer created\n";
 
-    const float fov = 90 * M_PI / 180;
+    const float fovDeg = 60;
+    const float fov = fovDeg * M_PI / 180;
     Vec3f center(0, 0, 0);
 
 #pragma omp parallel for
@@ -169,37 +187,16 @@ int main() {
 
 
     std::vector<Sphere> spheres;
-//    spheres.emplace_back(Vec3f(3, 3, -4), 1, redRubber);
-//    spheres.emplace_back(Vec3f(3, 3, -10), 3.3333, mirror);
-//    spheres.emplace_back(Vec3f(3, -3, -4), 0.1, ivory);
-//    spheres.emplace_back(Vec3f(3, -3, -10), 1, redRubber);
-//    spheres.emplace_back(Vec3f(-3, 3, -4), 1, ivory);
-//    spheres.emplace_back(Vec3f(-3, 3, -10), 0.5, mirror);
-//    spheres.emplace_back(Vec3f(-3, -3, -4), 1, redRubber);
-//    spheres.emplace_back(Vec3f(-3, -3, -10), 1, ivory);
-//
-//    spheres.emplace_back(Vec3f(4, 0, -4), 1, glass);
-//    spheres.emplace_back(Vec3f(0, 4, -4), 1, glass);
-//    spheres.emplace_back(Vec3f(-4, 0, -4), 1, glass);
-//    spheres.emplace_back(Vec3f(0, -4, -4), 1, glass);
-//
-//    spheres.emplace_back(Vec3f(-3, 0, -16), 2, ivory);
-//    spheres.emplace_back(Vec3f(-1.0f, -1.5f, -12), 2, glass);
-//    spheres.emplace_back(Vec3f(1.5, -0.5f, -18), 3, redRubber);
-//    spheres.emplace_back(Vec3f(7, 5, -18), 4, glass);
 
-    spheres.emplace_back(Vec3f(0, 0, -8), 4, glass);
-    spheres.emplace_back(Vec3f(2, 0, -13), 1, ivory);
-    spheres.emplace_back(Vec3f(-1, -2, -14), 1, redRubber);
+    spheres.emplace_back(Vec3f(-3, 0, -16), 2, ivory);
+    spheres.emplace_back(Vec3f(-1.0f, -1.5f, -12), 2, glass);
+    spheres.emplace_back(Vec3f(1.5, -0.5f, -18), 3, redRubber);
+    spheres.emplace_back(Vec3f(7, 5, -18), 4, mirror);
 
     std::vector<Light> lights;
-//    lights.emplace_back(Vec3f(0, 0, -4), 1.6);
-//    lights.emplace_back(Vec3f(20, 20, 30), 2);
-//    lights.emplace_back(Vec3f(-20, 20, 20), 1.5);
-//    lights.emplace_back(Vec3f(30, 50, -25), 1.8);
-//    lights.emplace_back(Vec3f(30, 20, 30), 1.8);
-
-    lights.emplace_back(Vec3f(0, 100, 0), 2);
+    lights.emplace_back(Vec3f(-20, 20, 20), 1.5);
+    lights.emplace_back(Vec3f(30, 50, -25), 1.8);
+    lights.emplace_back(Vec3f(30, 20, 30), 1.7);
 
     render(spheres, lights);
 
