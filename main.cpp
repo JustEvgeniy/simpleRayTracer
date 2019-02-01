@@ -6,13 +6,15 @@
 #include "geometry.h"
 
 struct Material {
-    Vec3f albedo;
+    float refractiveIndex;
+    Vec4f albedo;
     Vec3f diffuseColor;
     float specularExponent;
 
-    Material() : albedo(1, 0, 0), diffuseColor(), specularExponent() {}
+    Material() : refractiveIndex(1), albedo(1, 0, 0, 0), diffuseColor(), specularExponent() {}
 
-    Material(const Vec3f &a, const Vec3f &c, const float &s) : albedo(a), diffuseColor(c), specularExponent(s) {}
+    Material(const float &r, const Vec4f &a, const Vec3f &c, const float &s) :
+            refractiveIndex(r), albedo(a), diffuseColor(c), specularExponent(s) {}
 };
 
 struct Light {
@@ -49,6 +51,21 @@ Vec3f reflect(const Vec3f &I, const Vec3f &N) {
     return N * 2 * (I * N) - I;
 }
 
+Vec3f refract(const Vec3f &I, const Vec3f &N, const float &refractiveIndex) {
+    float cosi = -std::max(-1.f, std::min(1.f, I * N));
+    float etai = 1;
+    float etat = refractiveIndex;
+    Vec3f n = N;
+    if (cosi < 0) {
+        cosi = -cosi;
+        n = -N;
+        std::swap(etai, etat);
+    }
+    float eta = etai / etat;
+    float k = 1 - eta * eta * (1 - cosi * cosi);
+    return k < 0 ? Vec3f(0, 0, 0) : I * eta + n * (eta * cosi - sqrtf(k));
+}
+
 bool scene_intersect(const Vec3f &origin, const Vec3f &dir, const std::vector<Sphere> &spheres,
                      Vec3f &hit, Vec3f &N, Material &material) {
     float spheresDist = std::numeric_limits<float>::max();
@@ -75,8 +92,11 @@ Vec3f cast_ray(const Vec3f &origin, const Vec3f &dir,
     }
 
     Vec3f reflectDir = reflect(-dir, N).normalize();
+    Vec3f refractDir = refract(dir, N, material.refractiveIndex).normalize();
     Vec3f reflectOrigin = reflectDir * N < 0 ? point - N * 1e-4 : point + N * 1e-4;
+    Vec3f refractOrigin = refractDir * N < 0 ? point - N * 1e-4 : point + N * 1e-4;
     Vec3f reflectColor = cast_ray(reflectOrigin, reflectDir, spheres, lights, depth + 1);
+    Vec3f refractColor = cast_ray(refractOrigin, refractDir, spheres, lights, depth + 1);
 
     float diffuseLightIntensity = 0;
     float specularLightIntensity = 0;
@@ -98,18 +118,22 @@ Vec3f cast_ray(const Vec3f &origin, const Vec3f &dir,
 
     return material.diffuseColor * diffuseLightIntensity * material.albedo[0] +
            Vec3f(1, 1, 1) * specularLightIntensity * material.albedo[1] +
-           reflectColor * material.albedo[2];
+           reflectColor * material.albedo[2] +
+           refractColor * material.albedo[3];
 }
 
 void render(const std::vector<Sphere> &spheres, const std::vector<Light> &lights) {
     const int width = 1024;
     const int height = 768;
+//    const int width = 1920 * 4;
+//    const int height = 1080 * 4;
     std::vector<Vec3f> frameBuffer(width * height);
-    std::cerr << "Buffer created\n";
+    std::cout << "Buffer created\n";
 
     const float fov = 90 * M_PI / 180;
     Vec3f center(0, 0, 0);
 
+#pragma omp parallel for
     for (int i = 0; i < width; ++i) {
         for (int j = 0; j < height; ++j) {
             float x = (2 * (i + 0.5f) / float(width) - 1) * tanf(fov / 2) * width / float(height);
@@ -118,7 +142,7 @@ void render(const std::vector<Sphere> &spheres, const std::vector<Light> &lights
             frameBuffer[i + j * width] = cast_ray(center, dir, spheres, lights);
         }
     }
-    std::cerr << "Buffer filled\n";
+    std::cout << "Buffer filled\n";
 
     std::ofstream ofs;
     ofs.open("out.ppm");
@@ -134,13 +158,15 @@ void render(const std::vector<Sphere> &spheres, const std::vector<Light> &lights
         }
     }
     ofs.close();
-    std::cerr << "Image written\n";
+    std::cout << "Image written\n";
 }
 
 int main() {
-    Material ivory({0.6, 0.3, 0.1}, {0.4, 0.4, 0.3}, 50);
-    Material redRubber({0.9, 0.1, 0}, {0.3, 0.1, 0.1}, 10);
-    Material mirror({0, 10, 0.8}, {1, 1, 1}, 1425);
+    Material ivory(1, Vec4f(0.6, 0.3, 0.1, 0.0), Vec3f(0.4, 0.4, 0.3), 50);
+    Material glass(1.5, Vec4f(0.0, 0.5, 0.1, 0.8), Vec3f(0.6, 0.7, 0.8), 125);
+    Material redRubber(1, Vec4f(0.9, 0.1, 0.0, 0.0), Vec3f(0.3, 0.1, 0.1), 10);
+    Material mirror(1, Vec4f(0.0, 10.0, 0.8, 0.0), Vec3f(1.0, 1.0, 1.0), 1425);
+
 
     std::vector<Sphere> spheres;
 //    spheres.emplace_back(Vec3f(3, 3, -4), 1, redRubber);
@@ -151,20 +177,29 @@ int main() {
 //    spheres.emplace_back(Vec3f(-3, 3, -10), 0.5, mirror);
 //    spheres.emplace_back(Vec3f(-3, -3, -4), 1, redRubber);
 //    spheres.emplace_back(Vec3f(-3, -3, -10), 1, ivory);
+//
+//    spheres.emplace_back(Vec3f(4, 0, -4), 1, glass);
+//    spheres.emplace_back(Vec3f(0, 4, -4), 1, glass);
+//    spheres.emplace_back(Vec3f(-4, 0, -4), 1, glass);
+//    spheres.emplace_back(Vec3f(0, -4, -4), 1, glass);
+//
+//    spheres.emplace_back(Vec3f(-3, 0, -16), 2, ivory);
+//    spheres.emplace_back(Vec3f(-1.0f, -1.5f, -12), 2, glass);
+//    spheres.emplace_back(Vec3f(1.5, -0.5f, -18), 3, redRubber);
+//    spheres.emplace_back(Vec3f(7, 5, -18), 4, glass);
 
-
-    spheres.emplace_back(Vec3f(3, 3, -4), 3, mirror);
-    spheres.emplace_back(Vec3f(3, 3, -10), 3, mirror);
-    spheres.emplace_back(Vec3f(3, -3, -4), 3, mirror);
-    spheres.emplace_back(Vec3f(3, -3, -10), 3, mirror);
-    spheres.emplace_back(Vec3f(-3, 3, -4), 3, mirror);
-    spheres.emplace_back(Vec3f(-3, 3, -10), 3, mirror);
-    spheres.emplace_back(Vec3f(-3, -3, -4), 3, mirror);
-    spheres.emplace_back(Vec3f(-3, -3, -10), 3, mirror);
+    spheres.emplace_back(Vec3f(0, 0, -8), 4, glass);
+    spheres.emplace_back(Vec3f(2, 0, -13), 1, ivory);
+    spheres.emplace_back(Vec3f(-1, -2, -14), 1, redRubber);
 
     std::vector<Light> lights;
-    lights.emplace_back(Vec3f(0, 0, -7), 1.6);
-    lights.emplace_back(Vec3f(20, 20, 30), 3);
+//    lights.emplace_back(Vec3f(0, 0, -4), 1.6);
+//    lights.emplace_back(Vec3f(20, 20, 30), 2);
+//    lights.emplace_back(Vec3f(-20, 20, 20), 1.5);
+//    lights.emplace_back(Vec3f(30, 50, -25), 1.8);
+//    lights.emplace_back(Vec3f(30, 20, 30), 1.8);
+
+    lights.emplace_back(Vec3f(0, 100, 0), 2);
 
     render(spheres, lights);
 
