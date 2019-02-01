@@ -13,7 +13,7 @@ struct Material {
 
     Material() : refractiveIndex(1), albedo(1, 0, 0, 0), diffuseColor(), specularExponent() {}
 
-    Material(const float &r, const Vec4f &a, const Vec3f &c, const float &s) :
+    Material(const float r, const Vec4f &a, const Vec3f &c, const float s) :
             refractiveIndex(r), albedo(a), diffuseColor(c), specularExponent(s) {}
 };
 
@@ -21,7 +21,7 @@ struct Light {
     Vec3f position;
     float intensity;
 
-    Light(const Vec3f &p, const float &i) : position(p), intensity(i) {}
+    Light(const Vec3f &p, const float i) : position(p), intensity(i) {}
 };
 
 struct Sphere {
@@ -29,7 +29,7 @@ struct Sphere {
     float radius;
     Material material;
 
-    Sphere(const Vec3f &c, const float &r, const Material &m) : center(c), radius(r), material(m) {}
+    Sphere(const Vec3f &c, const float r, const Material &m) : center(c), radius(r), material(m) {}
 
     bool ray_intersect(const Vec3f &origin, const Vec3f &dir, float &t0) const {
         Vec3f L = center - origin;
@@ -51,19 +51,16 @@ Vec3f reflect(const Vec3f &I, const Vec3f &N) {
     return N * 2 * (I * N) - I;
 }
 
-Vec3f refract(const Vec3f &I, const Vec3f &N, const float &refractiveIndex) {
+Vec3f refract(const Vec3f &I, const Vec3f &N, const float eta_t, const float eta_i = 1.f) {
     float cosi = -std::max(-1.f, std::min(1.f, I * N));
-    float etai = 1;
-    float etat = refractiveIndex;
-    Vec3f n = N;
-    if (cosi < 0) {
-        cosi = -cosi;
-        n = -N;
-        std::swap(etai, etat);
-    }
-    float eta = etai / etat;
+    // if the ray comes from the inside the object, swap the air and the media
+    if (cosi < 0)
+        return refract(I, -N, eta_i, eta_t);
+
+    float eta = eta_i / eta_t;
     float k = 1 - eta * eta * (1 - cosi * cosi);
-    return k < 0 ? Vec3f(0, 0, 0) : I * eta + n * (eta * cosi - sqrtf(k));
+    // k < 0 = total reflection, no ray to refract. I refract it anyways, this has no physical meaning
+    return k < 0 ? Vec3f(1, 0, 0) : I * eta + N * (eta * cosi - sqrtf(k));
 }
 
 bool scene_intersect(const Vec3f &origin, const Vec3f &dir, const std::vector<Sphere> &spheres,
@@ -80,18 +77,18 @@ bool scene_intersect(const Vec3f &origin, const Vec3f &dir, const std::vector<Sp
     }
 
     float checkerboardDist = std::numeric_limits<float>::max();
-    if (fabs(dir.y) > 1e-3) {
+    if (fabs(dir.y) > 1e-4) {
         float d = -(origin.y + 4) / dir.y;
         Vec3f pt = origin + dir * d;
-        if (d > 0 && fabs(pt.x) < 10 && pt.z < -10 && pt.z > -30 && d < spheresDist) {
+        if (d > 0 && d < spheresDist &&
+            fabs(pt.x) < 100 &&
+            fabs(pt.z) < 100) {
             checkerboardDist = d;
             hit = pt;
             N = Vec3f(0, 1, 0);
             material.diffuseColor = (int(.5 * hit.x + 1000) + int(.5 * hit.z)) % 2 ?
-                                    Vec3f(1, 1, 1) :
-                                    Vec3f(1, .3, .3);
-
-            material.diffuseColor = material.diffuseColor * .3;
+                                    Vec3f(.3, .3, .3) :
+                                    Vec3f(.3, .2, .1);
         }
     }
 
@@ -154,16 +151,17 @@ void render(const std::vector<Sphere> &spheres, const std::vector<Light> &lights
 #pragma omp parallel for
     for (int i = 0; i < width; ++i) {
         for (int j = 0; j < height; ++j) {
-            float x = (2 * (i + 0.5f) / float(width) - 1) * tanf(fov / 2) * width / float(height);
-            float y = -(2 * (j + 0.5f) / float(height) - 1) * tanf(fov / 2);
-            Vec3f dir = Vec3f(x, y, -1).normalize();
+            float dirX = (i + 0.5f) - width / 2.f;
+            float dirY = -(j + 0.5f) + height / 2.f;
+            float dirZ = -height / (2 * tanf(fov / 2));
+            Vec3f dir = Vec3f(dirX, dirY, dirZ).normalize();
             frameBuffer[i + j * width] = cast_ray(center, dir, spheres, lights);
         }
     }
     std::cout << "Buffer filled\n";
 
     std::ofstream ofs;
-    ofs.open("out.ppm");
+    ofs.open("out.ppm", std::ios::binary);
     ofs << "P6\n" << width << ' ' << height << "\n255\n";
     for (int i = 0; i < height * width; ++i) {
         Vec3f &c = frameBuffer[i];
@@ -187,16 +185,15 @@ int main() {
 
 
     std::vector<Sphere> spheres;
-
     spheres.emplace_back(Vec3f(-3, 0, -16), 2, ivory);
     spheres.emplace_back(Vec3f(-1.0f, -1.5f, -12), 2, glass);
     spheres.emplace_back(Vec3f(1.5, -0.5f, -18), 3, redRubber);
     spheres.emplace_back(Vec3f(7, 5, -18), 4, mirror);
 
     std::vector<Light> lights;
-    lights.emplace_back(Vec3f(-20, 20, 20), 1.5);
-    lights.emplace_back(Vec3f(30, 50, -25), 1.8);
-    lights.emplace_back(Vec3f(30, 20, 30), 1.7);
+    lights.emplace_back(Vec3f(-20, 20, 20), 1.3);
+    lights.emplace_back(Vec3f(30, 50, -25), 1.5);
+    lights.emplace_back(Vec3f(30, 20, 30), 1.9);
 
     render(spheres, lights);
 
