@@ -20,6 +20,6 @@ enable_cxx_compiler_flag_if_supported("-Wall")
 enable_cxx_compiler_flag_if_supported("-Wextra")
 enable_cxx_compiler_flag_if_supported("-pedantic")
 enable_cxx_compiler_flag_if_supported("-O0")
-enable_cxx_compiler_flag_if_supported("-fopenmp")
+#enable_cxx_compiler_flag_if_supported("-fopenmp")
 
 add_executable(simpleRayTracer main.cpp geometry.h)
