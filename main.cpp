@@ -13,6 +13,13 @@ struct Material {
     explicit Material(const Vec3f &color) : diffuseColor(color) {}
 };
 
+struct Light {
+    Vec3f position;
+    float intensity;
+
+    Light(const Vec3f &p, const float &i) : position(p), intensity(i) {}
+};
+
 struct Sphere {
     Vec3f center;
     float radius;
@@ -51,16 +58,25 @@ bool scene_intersect(const Vec3f &origin, const Vec3f &dir, const std::vector<Sp
     return spheresDist < 1000;
 }
 
-Vec3f cast_ray(const Vec3f &origin, const Vec3f &dir, const std::vector<Sphere> &spheres) {
+Vec3f cast_ray(const Vec3f &origin, const Vec3f &dir,
+               const std::vector<Sphere> &spheres,
+               const std::vector<Light> &lights) {
     Vec3f point, N;
     Material material;
     if (!scene_intersect(origin, dir, spheres, point, N, material)) {
         return {0.2, 0.7, 0.8};
     }
-    return material.diffuseColor;
+
+    float diffuseLightIntensity = 0;
+    for (const auto &light : lights) {
+        Vec3f lightDir = (light.position - point).normalize();
+        diffuseLightIntensity += light.intensity * std::max(0.f, lightDir * N);
+    }
+
+    return material.diffuseColor * diffuseLightIntensity;
 }
 
-void render(const std::vector<Sphere> &spheres) {
+void render(const std::vector<Sphere> &spheres, const std::vector<Light> &lights) {
     const int width = 1024;
     const int height = 768;
     std::vector<Vec3f> frameBuffer(width * height);
@@ -74,7 +90,7 @@ void render(const std::vector<Sphere> &spheres) {
             float x = (2 * (i + 0.5f) / float(width) - 1) * tanf(fov / 2) * width / float(height);
             float y = -(2 * (j + 0.5f) / float(height) - 1) * tanf(fov / 2);
             Vec3f dir = Vec3f(x, y, -1).normalize();
-            frameBuffer[i + j * width] = cast_ray(center, dir, spheres);
+            frameBuffer[i + j * width] = cast_ray(center, dir, spheres, lights);
         }
     }
     std::cerr << "Buffer filled\n";
@@ -102,7 +118,11 @@ int main() {
     spheres.emplace_back(Vec3f(7, 5, -18), 4, ivory);
     spheres.emplace_back(Vec3f(-10, -12, -18), 4, ivory);
 
-    render(spheres);
+    std::vector<Light> lights;
+    lights.emplace_back(Vec3f(-20, 20, 20), 1.5);
+    lights.emplace_back(Vec3f(-20, 20, -20), 1);
+
+    render(spheres, lights);
 
     return 0;
 }
