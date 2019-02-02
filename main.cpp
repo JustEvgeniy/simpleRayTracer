@@ -5,6 +5,10 @@
 #include <limits>
 #include "geometry.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+
+#include "stb_image.h"
+
 struct Material {
     float refractiveIndex;
     Vec4f albedo;
@@ -47,6 +51,39 @@ struct Sphere {
     }
 };
 
+struct Envmap {
+    int width{}, height{};
+    std::vector<Vec3f> data;
+
+    void load(const std::string &filename) {
+        int n = -1;
+        unsigned char *pixmap = stbi_load(filename.c_str(), &width, &height, &n, 0);
+        if (!pixmap || n != 3) {
+            std::cerr << "Error: can not load the environment map " << filename
+                      << "stbi: " << stbi_failure_reason() << std::endl;
+            return;
+        }
+        data.resize(width * height);
+        for (int j = height - 1; j >= 0; --j) {
+            for (int i = 0; i < width; ++i) {
+                data[i + j * width] = Vec3f(pixmap[(i + j * width) * 3 + 0],
+                                            pixmap[(i + j * width) * 3 + 1],
+                                            pixmap[(i + j * width) * 3 + 2]) * (1 / 255.f);
+            }
+        }
+        stbi_image_free(pixmap);
+        std::cout << "Envmap loaded\n";
+    }
+
+    Vec3f get(const int &x, const int &y) {
+//        assert(x >= 0 && x < width && y >= 0 && y < height);
+        if (x < 0 || x >= width || y < 0 || y >= height) {
+            return {0, 0, 0};
+        }
+        return data[x + y * width];
+    }
+} envmap;
+
 Vec3f reflect(const Vec3f &I, const Vec3f &N) {
     return N * 2 * (I * N) - I;
 }
@@ -81,8 +118,9 @@ bool scene_intersect(const Vec3f &origin, const Vec3f &dir, const std::vector<Sp
         float d = -(origin.y + 4) / dir.y;
         Vec3f pt = origin + dir * d;
         if (d > 0 && d < spheresDist &&
-            fabs(pt.x) < 100 &&
-            fabs(pt.z) < 100) {
+            fabs(pt.x) < 10 &&
+            pt.z < -10 &&
+            pt.z > -30) {
             checkerboardDist = d;
             hit = pt;
             N = Vec3f(0, 1, 0);
@@ -102,7 +140,9 @@ Vec3f cast_ray(const Vec3f &origin, const Vec3f &dir,
     Vec3f point, N;
     Material material;
     if (depth > 4 || !scene_intersect(origin, dir, spheres, point, N, material)) {
-        return {0.2, 0.7, 0.8};
+        int a = static_cast<int>((atan2(dir.z, dir.x) / (2 * M_PI) + .5) * envmap.width);
+        int b = static_cast<int>(acos(dir.y) / M_PI * envmap.height);
+        return envmap.get(a, b);
     }
 
     Vec3f reflectDir = reflect(-dir, N).normalize();
@@ -137,10 +177,10 @@ Vec3f cast_ray(const Vec3f &origin, const Vec3f &dir,
 }
 
 void render(const std::vector<Sphere> &spheres, const std::vector<Light> &lights) {
-    const int width = 1024;
-    const int height = 768;
-//    const int width = 1920 * 4;
-//    const int height = 1080 * 4;
+//    const int width = 1024;
+//    const int height = 768;
+    const int width = 1920;
+    const int height = 1080;
     std::vector<Vec3f> frameBuffer(width * height);
     std::cout << "Buffer created\n";
 
@@ -178,11 +218,12 @@ void render(const std::vector<Sphere> &spheres, const std::vector<Light> &lights
 }
 
 int main() {
+    envmap.load("../data/envmap.jpg");
+
     Material ivory(1, Vec4f(0.6, 0.3, 0.1, 0.0), Vec3f(0.4, 0.4, 0.3), 50);
     Material glass(1.5, Vec4f(0.0, 0.5, 0.1, 0.8), Vec3f(0.6, 0.7, 0.8), 125);
     Material redRubber(1, Vec4f(0.9, 0.1, 0.0, 0.0), Vec3f(0.3, 0.1, 0.1), 10);
     Material mirror(1, Vec4f(0.0, 10.0, 0.8, 0.0), Vec3f(1.0, 1.0, 1.0), 1425);
-
 
     std::vector<Sphere> spheres;
     spheres.emplace_back(Vec3f(-3, 0, -16), 2, ivory);
