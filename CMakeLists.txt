@@ -22,4 +22,4 @@ enable_cxx_compiler_flag_if_supported("-pedantic")
 enable_cxx_compiler_flag_if_supported("-O3")
 enable_cxx_compiler_flag_if_supported("-fopenmp")
 
-add_executable(simpleRayTracer main.cpp geometry.h stb_image.h)
+add_executable(simpleRayTracer main.cpp geometry.h stb_image.h Model.cpp Model.h)
