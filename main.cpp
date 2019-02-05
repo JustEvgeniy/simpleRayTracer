@@ -148,12 +148,19 @@ Vec3f cast_ray(const Vec3f &origin, const Vec3f &dir,
         return envmap.get(a, b);
     }
 
-    Vec3f reflectDir = reflect(-dir, N).normalize();
-    Vec3f refractDir = refract(dir, N, material.refractiveIndex).normalize();
-    Vec3f reflectOrigin = reflectDir * N < 0 ? point - N * 1e-4 : point + N * 1e-4;
-    Vec3f refractOrigin = refractDir * N < 0 ? point - N * 1e-4 : point + N * 1e-4;
-    Vec3f reflectColor = cast_ray(reflectOrigin, reflectDir, spheres, lights, models, depth + 1);
-    Vec3f refractColor = cast_ray(refractOrigin, refractDir, spheres, lights, models, depth + 1);
+    Vec3f reflection, refraction;
+    if (material.albedo[2] != 0) {
+        Vec3f reflectDir = reflect(-dir, N).normalize();
+        Vec3f reflectOrigin = reflectDir * N < 0 ? point - N * 1e-4 : point + N * 1e-4;
+        Vec3f reflectColor = cast_ray(reflectOrigin, reflectDir, spheres, lights, models, depth + 1);
+        reflection = reflectColor * material.albedo[2];
+    }
+    if (material.albedo[3] != 0) {
+        Vec3f refractDir = refract(dir, N, material.refractiveIndex).normalize();
+        Vec3f refractOrigin = refractDir * N < 0 ? point - N * 1e-4 : point + N * 1e-4;
+        Vec3f refractColor = cast_ray(refractOrigin, refractDir, spheres, lights, models, depth + 1);
+        refraction = refractColor * material.albedo[3];
+    }
 
     float diffuseLightIntensity = 0;
     float specularLightIntensity = 0;
@@ -175,17 +182,19 @@ Vec3f cast_ray(const Vec3f &origin, const Vec3f &dir,
 
     return material.diffuseColor * diffuseLightIntensity * material.albedo[0] +
            Vec3f(1, 1, 1) * specularLightIntensity * material.albedo[1] +
-           reflectColor * material.albedo[2] +
-           refractColor * material.albedo[3];
+           reflection + refraction;
 }
 
 void render(const std::vector<Sphere> &spheres,
             const std::vector<Light> &lights,
             const std::vector<Model> &models) {
-//    const int width = 1024;
-//    const int height = 768;
-    const int width = 1920 * 4;
-    const int height = 1080 * 4;
+    const int width = 1024 / 2;
+    const int height = 768 / 2;
+//    const int width = 1920 * 8;
+//    const int height = 1080 * 8;
+
+    std::cout << width << 'x' << height << '=' << width * height << " pixels to render\n";
+
     std::vector<Vec3f> frameBuffer(width * height);
     std::cout << "Buffer created\n";
 
@@ -235,7 +244,6 @@ int main() {
     spheres.emplace_back(Vec3f(-1.0f, -1.5f, -12), 2, glass);
     spheres.emplace_back(Vec3f(1.5, -0.5f, -18), 3, redRubber);
     spheres.emplace_back(Vec3f(7, 5, -18), 4, mirror);
-    spheres.emplace_back(Vec3f(7, -1, -13), 2, ivory);
 
     std::vector<Light> lights;
     lights.emplace_back(Vec3f(-20, 20, 20), 1.3);

@@ -7,7 +7,7 @@
 
 #include <cmath>
 #include <vector>
-#include <cassert>
+//#include <cassert>
 #include <iostream>
 
 template<size_t DIM, typename T>
@@ -15,12 +15,12 @@ struct vec {
     vec() { for (size_t i = DIM; i--; data_[i] = T()); }
 
     T &operator[](const size_t i) {
-        assert(i < DIM);
+//        assert(i < DIM);
         return data_[i];
     }
 
     const T &operator[](const size_t i) const {
-        assert(i < DIM);
+//        assert(i < DIM);
         return data_[i];
     }
 
@@ -43,12 +43,12 @@ struct vec<2, T> {
     explicit vec<2, T>(const vec<2, U> &v);
 
     T &operator[](const size_t i) {
-        assert(i < 2);
+//        assert(i < 2);
         return i <= 0 ? x : y;
     }
 
     const T &operator[](const size_t i) const {
-        assert(i < 2);
+//        assert(i < 2);
         return i <= 0 ? x : y;
     }
 
@@ -62,12 +62,12 @@ struct vec<3, T> {
     vec(T X, T Y, T Z) : x(X), y(Y), z(Z) {}
 
     T &operator[](const size_t i) {
-        assert(i < 3);
+//        assert(i < 3);
         return i <= 0 ? x : (1 == i ? y : z);
     }
 
     const T &operator[](const size_t i) const {
-        assert(i < 3);
+//        assert(i < 3);
         return i <= 0 ? x : (1 == i ? y : z);
     }
 
@@ -88,12 +88,12 @@ struct vec<4, T> {
     vec(T X, T Y, T Z, T W) : x(X), y(Y), z(Z), w(W) {}
 
     T &operator[](const size_t i) {
-        assert(i < 4);
+//        assert(i < 4);
         return i <= 0 ? x : (1 == i ? y : (2 == i ? z : w));
     }
 
     const T &operator[](const size_t i) const {
-        assert(i < 4);
+//        assert(i < 4);
         return i <= 0 ? x : (1 == i ? y : (2 == i ? z : w));
     }
 

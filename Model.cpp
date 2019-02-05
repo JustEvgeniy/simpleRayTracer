@@ -40,8 +40,8 @@ Model::Model(const std::string &filename, const Material &m) : verts(), faces(),
     }
     std::cout << "# v# " << verts.size() << " f# " << faces.size() << std::endl;
 
-    Vec3f min, max;
-    get_bbox(min, max);
+//    Vec3f min, max;
+//    get_bbox(min, max);
 }
 
 // Moller and Trumbore
@@ -93,17 +93,17 @@ void Model::get_bbox(Vec3f &min, Vec3f &max) {
 }
 
 const Vec3f &Model::point(int i) const {
-    assert(i >= 0 && i < nverts());
+//    assert(i >= 0 && i < nverts());
     return verts[i];
 }
 
 Vec3f &Model::point(int i) {
-    assert(i >= 0 && i < nverts());
+//    assert(i >= 0 && i < nverts());
     return verts[i];
 }
 
 int Model::vert(int fi, int li) const {
-    assert(fi >= 0 && fi < nfaces() && li >= 0 && li < 3);
+//    assert(fi >= 0 && fi < nfaces() && li >= 0 && li < 3);
     return faces[fi][li];
 }
 
